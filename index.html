@@ -43,6 +43,7 @@
             overflow: hidden;
         }
 
+        /* Top Bar styling */
         #top-bar {
             background-color: #0a0a0c;
             display: flex;
@@ -132,6 +133,7 @@
             animation: fadeIn var(--transition-speed) ease;
         }
 
+        /* GHOST TAB LAYOUT */
         #ghost-view {
             width: 100%;
             height: 100%;
@@ -354,7 +356,7 @@
             position: relative;
             box-sizing: border-box;
             transition: opacity var(--transition-speed) ease, transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
-            min-width: 0; 
+            min-width: 0; /* Fix text overflow in flex items */
         }
 
         .ghost-header {
@@ -559,6 +561,7 @@
             outline: none;
         }
 
+        /* MAP TAB COMPONENTS */
         #map-view {
             padding: 40px;
             overflow-y: auto;
@@ -598,6 +601,7 @@
             font-weight: 500;
         }
 
+        /* CARD & CONTENT UNIVERSAL STYLES (CURSED / PHOTO / CREDITS) */
         .info-tab-view {
             padding: 30px;
             overflow-y: auto;
@@ -653,11 +657,13 @@
             list-style-type: circle;
         }
 
+        /* TEXT COLOR OVERRIDES */
         .color-tool { color: var(--blue-tool); font-weight: bold; }
         .color-energy { color: var(--green-energy); font-weight: bold; }
         .color-ghost { color: var(--red-ghost); font-weight: bold; }
         .color-hunt { color: var(--red-hunt); font-weight: bold; }
 
+        /* DATA TABLES */
         .simple-data-table {
             width: 100%;
             border-collapse: collapse;
@@ -681,6 +687,7 @@
             background-color: rgba(255, 255, 255, 0.01);
         }
 
+        /* OBJECTIVE TAB STYLES */
         #objective-view {
             padding: 30px 20px;
             flex-direction: column;
@@ -772,6 +779,7 @@
             cursor: not-allowed;
         }
 
+        /* CREDITS TAB STYLES */
         .credits-dashboard {
             max-width: 750px;
             width: 100%;
@@ -884,12 +892,14 @@
             to { opacity: 1; }
         }
 
+        /* TABLET/VERTICAL MONITOR RESPONSIVENESS (Aspect Ratio: Square or Tall) */
         @media (max-aspect-ratio: 13/9) {
             #ghost-list-container {
                 grid-template-columns: 1fr;
             }
         }
 
+        /* MOBILE RESPONSIVENESS - LIFE CHANGING EXPERIENCE (Very Tall or Very Small) */
         @media (max-aspect-ratio: 1/1), (max-width: 768px) {
             body {
                 height: auto;
@@ -1688,6 +1698,7 @@
 
             cards.forEach(card => card.style.height = 'auto');
 
+            // Check if we're in 2 per row mode
             const style = window.getComputedStyle(container);
             const gridTemplateColumns = style.gridTemplateColumns;
             const isTwoPerRow = gridTemplateColumns.includes('1fr 1fr');
@@ -1711,6 +1722,7 @@
 
             const container = document.getElementById('ghost-list-container');
             
+            // Save current ghost positions for sliding animations
             const ghostPositions = {};
             const currentCards = Array.from(container.querySelectorAll('.ghost-card'));
             currentCards.forEach(card => {
@@ -1723,10 +1735,15 @@
             container.innerHTML = '';
 
             let validGhosts = [];
+            let totalActiveSolutionsCount = 0;
 
             ghostsData.forEach(ghost => {
                 let check = checkGhostPossibility(ghost, evidenceStates, mimicryChallengeActive);
                 let isManExcluded = !!manuallyRejectedGhosts[ghost.name];
+
+                if (check.possible && !isManExcluded) {
+                    totalActiveSolutionsCount++;
+                }
 
                 let combinedText = (ghost.name + " " + ghost.traits.join(" ") + " " + ghost.evidences.join(" ")).toLowerCase();
                 let matchesSearch = !searchQuery || combinedText.includes(searchQuery.toLowerCase());
@@ -1761,12 +1778,11 @@
                 return b.matchCount - a.matchCount;
             });
 
-            let totalActiveSolutionsCount = validGhosts.filter(g => !g.isImpossible && !g.isManualExcluded).length;
             document.getElementById('remaining-count-badge').innerText = totalActiveSolutionsCount;
 
             validGhosts.forEach(ghost => {
                 const card = document.createElement('div');
-                let isSoloWinner = !ghost.isImpossible && !ghost.isManualExcluded && totalActiveSolutionsCount === 1;
+                let isSoloWinner = !searchQuery && !ghost.isImpossible && !ghost.isManualExcluded && totalActiveSolutionsCount === 1;
 
                 let stateClass = '';
                 if (ghost.isManualExcluded) stateClass = ' manually-excluded';
@@ -1806,6 +1822,7 @@
                 container.appendChild(card);
             });
 
+            // Apply sliding animations
             Array.from(container.querySelectorAll('.ghost-card')).forEach(card => {
                 const nameEl = card.querySelector('.ghost-name');
                 if (nameEl && ghostPositions[nameEl.innerText] !== undefined) {
@@ -1815,7 +1832,7 @@
                     if (deltaY !== 0) {
                         card.style.transition = 'none';
                         card.style.transform = `translateY(${deltaY}px)`;
-                        card.getBoundingClientRect();
+                        card.getBoundingClientRect(); // Force reflow
                         card.style.transition = 'opacity var(--transition-speed) ease, transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
                         card.style.transform = 'translateY(0)';
                     }
@@ -1833,10 +1850,12 @@
         function renderObjectives() {
             const root = document.getElementById('objective-dom-root');
             
+            // Save current positions for sliding animation
             const positions = {};
             const currentChildren = Array.from(root.children);
             currentChildren.forEach(child => {
                 if (child.tagName === 'LABEL') {
+                    // Find the objective text to match
                     const textEl = child.querySelector('span');
                     if (textEl) {
                         positions[textEl.innerHTML] = child.getBoundingClientRect().top;
@@ -1886,6 +1905,7 @@
                 root.appendChild(label);
             });
             
+            // Apply sliding animation
             Array.from(root.querySelectorAll('.objective-item')).forEach(child => {
                 const textEl = child.querySelector('span');
                 if (textEl && positions[textEl.innerHTML] !== undefined) {
@@ -1895,7 +1915,7 @@
                     if (deltaY !== 0) {
                         child.style.transition = 'none';
                         child.style.transform = `translateY(${deltaY}px)`;
-                        child.getBoundingClientRect();
+                        child.getBoundingClientRect(); // Force reflow
                         child.style.transition = 'all var(--transition-speed) ease, transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)';
                         child.style.transform = 'translateY(0)';
                     }
