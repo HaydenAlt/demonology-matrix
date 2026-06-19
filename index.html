@@ -114,6 +114,12 @@
             transition: background var(--transition-speed) ease, transform 0.1s ease;
         }
 
+        #sidebar .reset-btn {
+            width: 100%;
+            margin-top: auto;
+            flex-shrink: 0;
+        }
+
         .reset-btn:hover {
             background-color: #cc0000;
             transform: translateY(-1px);
@@ -938,8 +944,7 @@
                 background-color: #2a2a30;
             }
             
-            .reset-btn {
-                width: 100%;
+            #sidebar .reset-btn {
                 padding: 10px;
                 font-size: 14px;
             }
@@ -1139,7 +1144,6 @@
                 <button class="tab-btn" onclick="switchTab('credits', event)">Credits</button>
             </div>
         </div>
-        <button class="reset-btn" onclick="resetMatrix()">Reset</button>
     </div>
 
     <div id="ghost-view" class="view-content active">
@@ -1152,6 +1156,7 @@
                 <input type="checkbox" id="mimic-check" onchange="handleMimicToggle()">
                 <span>Mimicry challenge?</span>
             </label>
+            <button class="reset-btn" onclick="resetMatrix()">Reset</button>
         </div>
         <div id="ghost-main-content">
             <div id="search-container">
