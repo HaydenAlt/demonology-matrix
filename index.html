@@ -1453,7 +1453,7 @@
             { name: "Dybbuk", evidences: ["Freezing Temperatures", "Prints", "Wither"], traits: ["Stunned after music box first played", "Can throw corpses"] },
             { name: "Entity", evidences: ["Prints", "Laser Projector", "Spirit Box"], traits: ["Able to teleport between rooms", "Can teleport objects indicated by a smoke effect"] },
             { name: "Ghoul", evidences: ["Freezing Temperatures", "Ghost Orb", "Spirit Box"], traits: ["Excessive messages in chat will cause a hunt", "Can't disable electronics"] },
-            { name: "Keres", evidences: ["Prints", "Spirit Box", "Wither"], traits: ["Speed decreases every time they kill", "Targets the hunter with the least energy / (SOLO) Will target if you are below 90% energy"] },
+            { name: "Keres", evidences: ["Prints", "Spirit Box", "Wither"], traits: ["Speed decreases every time they kill", "Targets the hunter with the least energy / (SOLO) Will target if you are below 90% energy", "Respond with a female voice"] },
             { name: "Leviathan", evidences: ["Inscription", "Prints", "Ghost Orb"], traits: ["Flicker equipment and disable lights outside of hunts"] },
             { name: "Nightmare", evidences: ["EMF Level 5", "Ghost Orb", "Spirit Box"], traits: ["Can cause auditory hallucinations", "Afraid of lit rooms"] },
             { name: "Oni", evidences: ["Freezing Temperatures", "Laser Projector", "Spirit Box"], traits: ["Extremely fast during hunts", "More likely to start ghost events and show its appearance"] },
@@ -1461,13 +1461,13 @@
             { name: "Ravager", evidences: ["EMF Level 5", "Inscription", "Spirit Box"], traits: ["Can create a \"vortex\" capable of pulling nearby objects into a tornado", "All ghost events will leave behind EMF Level 5 evidence (even with zero evidence settings)", "Can throw multiple objects at once"] },
             { name: "Revenant", evidences: ["EMF Level 5", "Freezing Temperatures", "Inscription"], traits: ["Low hunting cooldown", "Stops hunting once a player is killed"] },
             { name: "Shadow", evidences: ["EMF Level 5", "Inscription", "Laser Projector"], traits: ["Lower temperature changes", "Less likely to perform ghost activity in lit rooms"] },
-            { name: "Siren", evidences: ["EMF Level 5", "Spirit Box", "Wither"], traits: ["Respond with a female voice and uses a female Ghost Model", "Anyone within line-of-sight will be slowed down", "Can sing in a Spirit box (\"-HUMMING-\") instead of answering a question"] },
+            { name: "Siren", evidences: ["EMF Level 5", "Spirit Box", "Wither"], traits: ["Respond with a female voice", "Anyone within line-of-sight will be slowed down", "Can sing in a Spirit box (\"-HUMMING-\") instead of answering a question"] },
             { name: "Skinwalker", evidences: ["Freezing Temperatures", "Inscription", "Spirit Box", "Ghost Orb"], traits: ["Fakes the Ghost Orb evidence", "Mimics other ghosts' abilities"] },
             { name: "Specter", evidences: ["EMF Level 5", "Freezing Temperatures", "Laser Projector"], traits: ["Throw items frequently", "Do not roam and will only stick to their ghost room except while hunting"] },
             { name: "Spirit", evidences: ["Inscription", "Prints", "Spirit Box"], traits: ["Can alter lit up candles to blue"] },
             { name: "The Wisp", evidences: ["Laser Projector", "Ghost Orb", "Wither"], traits: ["Can walk through lines of fire", "Can only start a hunt when player is in the ghost's favorite room", "Can light up candles"] },
             { name: "Umbra", evidences: ["Prints", "Ghost Orb", "Laser Projector"], traits: ["Do not make footstep sounds", "Move slower in lit rooms"] },
-            { name: "Vesper", evidences: ["Inscription", "Prints", "Wither"], traits: ["Echolocation: Relies solely on sound to hunt, even through walls", "Lacks ocular vision", "Can ignore and kill players in closets", "Weakness: Standing still during a hunt grants immunity given no sound is emitted"] },
+            { name: "Vesper", evidences: ["Inscription", "Prints", "Wither"], traits: ["Echolocation: Relies solely on sound to hunt, even through walls", "Lacks ocular vision", "Weakness: Standing still during a hunt grants immunity given no sound is emitted"] },
             { name: "Vex", evidences: ["Freezing Temperatures", "Ghost Orb", "Wither"], traits: ["Do not show up in LIDAR Scans", "Can walk through walls"] },
             { name: "Wendigo", evidences: ["Inscription", "Ghost Orb", "Laser Projector"], traits: ["Less likely to start hunts near lit flames (Candles or Lantern)", "Increases in speed as average energy decreases"] },
             { name: "Wraith", evidences: ["EMF Level 5", "Laser Projector", "Spirit Box"], traits: ["Depletes player's energy rapidly, roughly 0.2-0.4% per second", "Do not disturb salt"] }
@@ -1545,6 +1545,7 @@
                     let simulatedStates = { ...evidenceStates };
                     simulatedStates[ev.id] = 1;
                     ghostsData.forEach(g => {
+                        if (manuallyRejectedGhosts[g.name]) return;
                         if (checkGhostPossibility(g, simulatedStates, mimicryChallengeActive).possible) count++;
                     });
                 }
