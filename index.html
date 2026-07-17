@@ -1,15 +1,10 @@
-<!-- 
-To-do list:
-Show a green tint when an evidence is sure to be.
-Show a red tint if none of the remaining ghosts possess it.
-Show difficulty table
--->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Demonology Matrix v1.10.0</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root {
             --bg-color: #121214;
@@ -120,14 +115,149 @@ Show difficulty table
             transition: background var(--transition-speed) ease, transform 0.1s ease;
         }
 
-        #sidebar .reset-btn {
-            width: 100%;
+        .sidebar-action-row {
+            display: flex;
+            gap: 8px;
             margin-top: auto;
             flex-shrink: 0;
         }
 
+        #sidebar .sidebar-action-row .reset-btn,
+        #sidebar .sidebar-action-row .sync-btn {
+            flex: 1;
+            width: auto;
+            margin-top: 0;
+        }
+
+        .sync-btn {
+            background-color: #1e522f;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: background var(--transition-speed) ease, transform 0.1s ease;
+        }
+
+        .sync-btn:hover {
+            background-color: #2e7d46;
+            transform: translateY(-1px);
+        }
+
+        .sync-popup-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .sync-popup-overlay.open {
+            display: flex;
+        }
+
+        .sync-popup-content {
+            background-color: #1a1a1e;
+            border: 2px solid #3e3e46;
+            border-radius: 10px;
+            padding: 20px;
+            width: 100%;
+            max-width: 420px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+        }
+
+        .sync-popup-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #2d2d35;
+        }
+
+        .sync-popup-header h3 {
+            font-size: 18px;
+            color: #fff;
+        }
+
+        .sync-popup-close {
+            background: #252529;
+            border: 1px solid #3e3e46;
+            color: #e0e0e0;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .sync-popup-close:hover {
+            background-color: #313138;
+            border-color: #52525c;
+        }
+
+        .sync-popup-content .sharecode-container {
+            margin-top: 0;
+        }
+
         .reset-btn:hover {
             background-color: #cc0000;
+            transform: translateY(-1px);
+        }
+        
+        .sharecode-container {
+            margin-top: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-shrink: 0;
+        }
+        
+        .sharecode-label {
+            font-size: 14px;
+            font-weight: bold;
+            color: #e0e0e0;
+        }
+        
+        .sharecode-row {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .sharecode-input {
+            flex: 1;
+            background-color: #252529;
+            border: 2px solid #3e3e46;
+            border-radius: 4px;
+            padding: 8px 12px;
+            color: white;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        .sharecode-btn {
+            background-color: #1e522f;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: background var(--transition-speed) ease, transform 0.1s ease;
+        }
+        
+        .sharecode-btn:hover {
+            background-color: #2e7d46;
             transform: translateY(-1px);
         }
 
@@ -159,7 +289,19 @@ Show difficulty table
             gap: 12px;
             flex-shrink: 0;
             height: 100%;
+            min-height: 0;
+            overflow: hidden;
             z-index: 500;
+        }
+        
+        #evidence-buttons-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            flex: 1;
+            min-height: 0;
+            overflow: hidden;
+            position: relative;
         }
 
         .remaining-header {
@@ -173,6 +315,7 @@ Show difficulty table
             display: flex;
             justify-content: space-between;
             align-items: center;
+            flex-shrink: 0;
         }
 
         .remaining-count {
@@ -185,18 +328,12 @@ Show difficulty table
             border: 1px solid #3e3e46;
         }
 
-        #evidence-buttons-container {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            flex-grow: 1;
-            position: relative;
-        }
-
         .evidence-btn-wrapper {
             position: relative;
             display: flex;
             width: 100%;
+            flex: 1;
+            min-height: 0;
             transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
         }
 
@@ -204,17 +341,21 @@ Show difficulty table
             display: flex;
             align-items: center;
             justify-content: space-between;
-            gap: 10px;
+            gap: 8px;
             background-color: var(--state-unsure);
             color: white;
             border: 1px solid #4a4a52;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 6px;
             cursor: pointer;
             text-align: left;
             transition: border-color var(--transition-speed) ease, background-color var(--transition-speed) ease;
             user-select: none;
-            flex-grow: 1;
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            height: 100%;
+            overflow: hidden;
         }
 
         .evidence-btn:hover {
@@ -232,21 +373,35 @@ Show difficulty table
             border-color: #b33636;
         }
 
+        .evidence-btn.sure {
+            background-color: rgba(74, 222, 128, 0.25);
+            border-color: #4ade80;
+        }
+
+        .evidence-btn.impossible {
+            background-color: rgba(122, 29, 29, 0.6);
+            border-color: #b33636;
+        }
+
         .evidence-icon {
             font-size: 20px;
             min-width: 24px;
             text-align: center;
+            flex-shrink: 0;
         }
 
         .evidence-info {
-            flex-grow: 1;
-            flex-shrink: 1;
-            flex-basis: 0;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
         }
 
         .evidence-info h4 {
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .evidence-btn-wrapper .tooltip {
@@ -279,6 +434,7 @@ Show difficulty table
             display: flex;
             align-items: center;
             gap: 6px;
+            flex-shrink: 0;
         }
 
         .match-badge {
@@ -322,6 +478,7 @@ Show difficulty table
             gap: 10px;
             cursor: pointer;
             user-select: none;
+            flex-shrink: 0;
         }
 
         .challenge-container input {
@@ -534,6 +691,14 @@ Show difficulty table
             border-top: 2px solid #252529;
             flex-shrink: 0;
             order: 2;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .search-buttons-row {
+            display: none;
+            gap: 10px;
         }
 
         #ghost-list-container {
@@ -557,6 +722,12 @@ Show difficulty table
             padding: 8px 15px;
         }
 
+        .desktop-search-buttons {
+            display: flex;
+            gap: 10px;
+            margin-left: auto;
+        }
+
         .search-icon {
             font-size: 20px;
         }
@@ -569,6 +740,105 @@ Show difficulty table
             color: white;
             font-size: 15px;
             outline: none;
+        }
+
+        .search-clear-btn {
+            background-color: #3e3e46;
+            border: 1px solid #50505a;
+            color: #e0e0e0;
+            font-size: 13px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+            user-select: none;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+
+        .search-clear-btn.is-hidden {
+            display: none;
+        }
+
+        .search-clear-btn:hover {
+            background-color: #50505a;
+            transform: scale(1.03);
+        }
+
+        .ghost-model-lightbox {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.88);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+            padding: 40px;
+            cursor: zoom-out;
+        }
+
+        .ghost-model-lightbox.open {
+            display: flex;
+        }
+
+        .ghost-model-lightbox img {
+            max-width: min(95vw, 1200px);
+            max-height: 95vh;
+            aspect-ratio: 16 / 9;
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 0 50px rgba(0, 0, 0, 0.6);
+            border: 2px solid #3e3e46;
+        }
+
+        .feedback-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: #1e522f;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            z-index: 3000;
+        }
+
+        .feedback-popup.show {
+            opacity: 1;
+        }
+
+        .back-to-top-btn {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            right: -8px;
+            background-color: #2a2a30;
+            color: #e0e0e0;
+            border: none;
+            padding: 12px 20px 12px 12px;
+            border-radius: 8px 0 0 8px;
+            font-size: 20px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+            z-index: 2000;
+            transition: all 0.2s ease;
+        }
+
+        .back-to-top-btn:hover {
+            background-color: #3e3e46;
+            transform: scale(1.05);
         }
 
         #map-view {
@@ -617,7 +887,7 @@ Show difficulty table
             flex-direction: column;
             align-items: center;
             justify-content: flex-start;
-            gap: 25px;
+            gap: 10px;
         }
 
         #credits-view {
@@ -626,7 +896,7 @@ Show difficulty table
         }
 
         .content-width-wrapper {
-            max-width: 900px;
+            max-width: 1400px;
             width: 100%;
             display: flex;
             flex-direction: column;
@@ -950,7 +1220,8 @@ Show difficulty table
                 background-color: #2a2a30;
             }
             
-            #sidebar .reset-btn {
+            #sidebar .sidebar-action-row .reset-btn,
+            #sidebar .sidebar-action-row .sync-btn {
                 padding: 10px;
                 font-size: 14px;
             }
@@ -987,8 +1258,12 @@ Show difficulty table
             }
             
             .evidence-btn {
-                padding: 10px;
+                padding: 8px 10px;
                 gap: 8px;
+            }
+            
+            .evidence-btn-wrapper {
+                flex: none;
             }
             
             .evidence-icon {
@@ -1023,6 +1298,33 @@ Show difficulty table
                 order: 1;
                 border-top: none;
                 border-bottom: 2px solid #252529;
+            }
+
+            .desktop-search-buttons {
+                display: none !important;
+            }
+            
+            .search-buttons-row {
+                display: flex !important;
+            }
+
+            #mobile-search-clear-btn {
+                background-color: #2a2a30;
+                border-color: #3e3e46;
+                color: #8a8a93;
+                cursor: not-allowed;
+                flex: 1;
+            }
+
+            #mobile-search-clear-btn.mobile-clear-active {
+                background-color: #3e3e46;
+                border-color: #50505a;
+                color: #e0e0e0;
+                cursor: pointer;
+            }
+
+            .search-buttons-row .search-clear-btn {
+                flex: 1;
             }
             
             #ghost-list-container {
@@ -1134,6 +1436,12 @@ Show difficulty table
             .meta-grid {
                 grid-template-columns: 1fr;
             }
+
+            .content-width-wrapper {
+                padding-left: 15px;
+                padding-right: 15px;
+                box-sizing: border-box;
+            }
         }
     </style>
 </head>
@@ -1144,8 +1452,7 @@ Show difficulty table
             <div class="tabs">
                 <button class="tab-btn active" onclick="switchTab('ghost', event)">Ghost</button>
                 <button class="tab-btn" onclick="switchTab('map', event)">Map</button>
-                <button class="tab-btn" onclick="switchTab('cursed', event)">Cursed Items</button>
-                <button class="tab-btn" onclick="switchTab('photo', event)">Photo Camera</button>
+                <button class="tab-btn" onclick="switchTab('info', event)">Information</button>
                 <button class="tab-btn" id="tab-objective-btn" onclick="switchTab('objective', event)">Objectives (0/0)</button>
                 <button class="tab-btn" onclick="switchTab('credits', event)">Credits</button>
             </div>
@@ -1162,240 +1469,628 @@ Show difficulty table
                 <input type="checkbox" id="mimic-check" onchange="handleMimicToggle()">
                 <span>Mimicry challenge?</span>
             </label>
-            <button class="reset-btn" onclick="resetMatrix()">Reset</button>
+            <div class="sidebar-action-row">
+                <button class="sync-btn" onclick="openSyncPopup()">🔗 Sync/Share</button>
+                <button class="reset-btn" onclick="resetMatrix()">Reset</button>
+            </div>
         </div>
         <div id="ghost-main-content">
             <div id="search-container">
                 <div class="search-wrapper">
                     <span class="search-icon">🔍</span>
                     <input type="text" id="search-bar" placeholder="Search within ghost names or descriptions..." oninput="handleSearch()">
+                    <div class="desktop-search-buttons">
+                        <button id="search-clear-btn" class="search-clear-btn is-hidden" onclick="resetSearch()">Clear Search</button>
+                        <button class="search-clear-btn" onclick="randomizeGhost()">🎲 Random</button>
+                    </div>
+                </div>
+                <div class="search-buttons-row">
+                    <button id="mobile-search-clear-btn" class="search-clear-btn" onclick="resetSearch()">Clear Search</button>
+                    <button class="search-clear-btn" onclick="randomizeGhost()">🎲 Random</button>
                 </div>
             </div>
             <div id="ghost-list-container"></div>
         </div>
     </div>
 
+    <div id="sync-popup" class="sync-popup-overlay" onclick="closeSyncPopupOnBackdrop(event)">
+        <div class="sync-popup-content" onclick="event.stopPropagation()">
+            <div class="sync-popup-header">
+                <h3>🔗 Sync / Share</h3>
+                <button class="sync-popup-close" onclick="closeSyncPopup()">✕</button>
+            </div>
+            <div class="sharecode-container">
+                <label class="sharecode-label">Share Code</label>
+                <div class="sharecode-row">
+                    <input type="text" id="sharecode-input" class="sharecode-input" placeholder="Enter code">
+                    <button class="sharecode-btn" onclick="copyShareCode()">Copy</button>
+                    <button class="sharecode-btn" onclick="applyShareCode()">Apply</button>
+                </div>
+            </div>
+            <div class="sharecode-container" style="margin-top: 10px; border-top: 1px solid #2d2d35; padding-top: 15px;">
+                <label class="sharecode-label">Live Sync Session</label>
+                <div class="sharecode-row">
+                    <input type="text" id="sync-session-id" class="sharecode-input" placeholder="Session ID (UUID)">
+                    <button id="sync-join-btn" class="sharecode-btn" onclick="toggleSyncSession()">Join</button>
+                </div>
+                <div id="sync-status" style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Not connected to a live session.</div>
+                <div class="sharecode-row" id="session-link-row" style="display: none; margin-top: 8px;">
+                    <button class="sharecode-btn" style="flex: 1;" onclick="copySessionLink()">Copy Session Link</button>
+                </div>
+            </div>
+            <div class="sharecode-container" style="margin-top: 10px;">
+                <div class="sharecode-row">
+                    <button class="sharecode-btn" style="flex: 1;" onclick="copyRemainingGhosts()">Copy Remaining Ghosts</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="ghost-model-lightbox" class="ghost-model-lightbox" onclick="closeGhostModelLightbox()">
+        <img id="ghost-model-lightbox-img" src="" alt="">
+    </div>
+    <div id="feedback-popup" class="feedback-popup"></div>
+    <button id="back-to-top-btn" class="back-to-top-btn" onclick="scrollToTop()">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12l7-7 7 7"/>
+        </svg>
+    </button>
+
     <div id="map-view" class="view-content">
         <div class="map-item-wrapper" id="map-list-target"></div>
     </div>
 
-    <div id="cursed-view" class="view-content info-tab-view">
+    <div id="info-view" class="view-content info-tab-view">
+        <style>
+                .info-sub-tabs {
+                    display: flex;
+                    flex-wrap: wrap;
+                    gap: 8px;
+                    margin-bottom: 20px;
+                    padding-bottom: 10px;
+                    border-bottom: 1px solid #2d2d35;
+                    flex-shrink: 0;
+                    width: 100%;
+                    max-width: 1400px;
+                    margin-left: auto;
+                    margin-right: auto;
+                    padding-left: 0;
+                    padding-right: 0;
+                    box-sizing: border-box;
+                }
+                .info-sub-tab-btn {
+                    background: #1a1a1e;
+                    border: 1px solid #3e3e46;
+                    color: #e0e0e0;
+                    padding: 8px 16px;
+                    border-radius: 6px;
+                    cursor: pointer;
+                    font-size: 14px;
+                    transition: all 0.2s ease;
+                    flex-shrink: 0;
+                    white-space: nowrap;
+                }
+                .info-sub-tab-btn:hover {
+                    background: #2a2a30;
+                }
+                .info-sub-tab-btn.active {
+                    background: #2e7d46;
+                    border-color: #4ade80;
+                    color: white;
+                }
+                .info-sub-view {
+                    display: none;
+                }
+                .info-sub-view.active {
+                    display: block;
+                }
+                .simple-data-table .emf-row-1 { background: #50ff8d !important; color: #000 !important; }
+                .simple-data-table .emf-row-2 { background: #98ff7e !important; color: #000 !important; }
+                .simple-data-table .emf-row-3 { background: #fff957 !important; color: #000 !important; }
+                .simple-data-table .emf-row-4 { background: #ff8949 !important; color: #000 !important; }
+                .simple-data-table .emf-row-5 { background: #ff0000 !important; color: #000 !important; }
+                
+                .ghost-models-container {
+                    display: flex;
+                    gap: 20px;
+                }
+                .ghost-models-column {
+            flex: 1;
+        }
+        
+        .gender-label {
+            font-size: 22px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 16px;
+        }
+                .ghost-model-card {
+                    background: #1e1e24;
+                    border: 1px solid #2d2d35;
+                    border-radius: 8px;
+                    padding: 12px;
+                    margin-bottom: 10px;
+                }
+                .ghost-model-card img {
+                    width: 100%;
+                    aspect-ratio: 16 / 9;
+                    object-fit: cover;
+                    border-radius: 4px;
+                }
+                .ghost-model-card h4 {
+                    margin: 8px 0 0 0;
+                    text-align: center;
+                }
+
+                @media (min-width: 769px) {
+            #info-view.ghost-models-active {
+                overflow: hidden;
+                padding: 20px;
+            }
+
+            #info-view.ghost-models-active .content-width-wrapper {
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                gap: 12px;
+                max-width: 100%;
+            }
+
+            #info-view.ghost-models-active .info-sub-tabs {
+                flex-shrink: 0;
+                margin-bottom: 8px;
+                padding-bottom: 10px;
+                max-width: 1400px;
+                padding-left: 0;
+                padding-right: 0;
+            }
+
+            #sub-ghost-models {
+                flex: 1;
+                min-height: 0;
+                overflow: auto;
+            }
+
+            #sub-ghost-models .info-card {
+                height: 100%;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                padding: 20px;
+                gap: 12px;
+            }
+
+            #sub-ghost-models .info-card h3 {
+                flex-shrink: 0;
+                padding-bottom: 8px;
+                font-size: 22px;
+            }
+
+            .ghost-models-container {
+                flex: 1;
+                min-height: 0;
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 20px;
+                overflow-y: auto;
+            }
+
+            .ghost-models-column {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                grid-template-rows: auto auto auto;
+                gap: 12px;
+                min-height: 0;
+                align-content: start;
+            }
+
+            .gender-label {
+                grid-column: 1 / -1;
+                margin-bottom: 0;
+                font-size: 20px;
+                font-weight: bold;
+                color: #fff;
+            }
+
+            .ghost-model-card {
+                margin-bottom: 0;
+                padding: 10px;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+            }
+
+            .ghost-model-card img {
+                width: 100%;
+                aspect-ratio: 16 / 9;
+                object-fit: cover;
+                cursor: zoom-in;
+                flex-shrink: 0;
+            }
+        }
+                
+                @media (max-width: 768px) {
+                    .ghost-models-container {
+                        flex-direction: column;
+                    }
+                    .info-sub-tabs {
+                        padding-left: 15px;
+                        padding-right: 15px;
+                        max-width: 100%;
+                    }
+                }
+            </style>
+            <div class="info-sub-tabs">
+                <button class="info-sub-tab-btn active" onclick="switchInfoSubTab('cursed-items')">Cursed Items</button>
+                <button class="info-sub-tab-btn" onclick="switchInfoSubTab('photos')">Photos</button>
+                <button class="info-sub-tab-btn" onclick="switchInfoSubTab('chat-commands')">Chat Commands</button>
+                <button class="info-sub-tab-btn" onclick="switchInfoSubTab('emf')">EMF</button>
+                <button class="info-sub-tab-btn" onclick="switchInfoSubTab('difficulty')">Difficulty</button>
+                <button class="info-sub-tab-btn" onclick="switchInfoSubTab('ghost-models')">Ghost Models</button>
+            </div>
         <div class="content-width-wrapper">
-            <div class="info-card">
-                <h3>🎟️ <span class="color-tool">Fortune Teller</span></h3>
-                <ul>
-                    <li>Does not drain <span class="color-energy">energy</span> normally</li>
-                    <li>Fun gambling cursed object</li>
-                    <li>Find coins in the field to exchange for a ticket</li>
-                    <li>Coin count is based on map size:
-                        <ul>
-                            <li>Small: 2-3 Fortune Coins</li>
-                            <li>Medium: 3-5 Fortune Coins</li>
-                            <li>Large: 5-8 Fortune Coins</li>
+
+            <div id="sub-cursed-items" class="info-sub-view active">
+                <div class="info-card">
+                    <h3>🎟️ <span class="color-tool">Fortune Teller</span></h3>
+                    <ul>
+                        <li>Does not drain <span class="color-energy">energy</span> normally</li>
+                        <li>Fun gambling cursed object</li>
+                        <li>Find coins in the field to exchange for a ticket</li>
+                        <li>Coin count is based on map size:
+                            <ul>
+                                <li>Small: 2-3 Fortune Coins</li>
+                                <li>Medium: 3-5 Fortune Coins</li>
+                                <li>Large: 5-8 Fortune Coins</li>
+                            </ul>
+                        </li>
+                    </ul>
+                    <table class="simple-data-table">
+                        <thead>
+                            <tr><th>Reading</th><th>Effect</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Darkness Gnaws At You</td><td>Removes <span class="color-energy">-40% energy</span> from you immediately.</td></tr>
+                            <tr><td>The Presence Will Stir</td><td>Causes a random <span class="color-ghost">ghost event</span> to trigger.</td></tr>
+                            <tr><td>They Come For You Now</td><td>Starts a <span class="color-hunt">Cursed Hunt</span>.</td></tr>
+                            <tr><td>Your Time Has Come</td><td>Immediately die. A custom death screen will appear with the words: "The Fortune Teller Reaps Your Soul".</td></tr>
+                            <tr><td>Your Eyes Are For Granted</td><td>Your screen will be blurry for a minute.</td></tr>
+                            <tr><td>The Wind Acts Upon Us</td><td>Suddenly closes all of the doors in the Job Site (makes the same sound effect as when the front door is closed at the start of a hunt).</td></tr>
+                            <tr><td>There Is No Escape</td><td>Any closed doors cannot be opened temporarily; it will return to normal after a few seconds.</td></tr>
+                            <tr><td>Ghosts Retreat For You</td><td>The <span class="color-ghost">ghost</span> will return to their favorite room, regardless of when it's hunting or roaming.</td></tr>
+                            <tr><td>All You Need Is A Second Chance</td><td>A Fortune Coin appears in your inventory.</td></tr>
+                            <tr><td>You Gain The Cursed Favor</td><td>Makes a random new <span class="color-tool">Cursed Object</span> appear in any of the spawn locations in the Job Site.</td></tr>
+                            <tr><td>Warmth Returns To Your Soul</td><td>Restores <span class="color-energy">+50% energy</span> to you immediately.</td></tr>
+                            <tr><td>A Calming Presence Welcomes You</td><td>Restores <span class="color-energy">+30% energy</span> to each person present immediately.</td></tr>
+                            <tr><td>Your Tarot Should Be Read</td><td>Activates a random Perk that is absent from the setup.</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="info-card">
+                    <h3>🪞 <span class="color-tool">Haunted Mirror</span></h3>
+                    <ul>
+                        <li><span class="color-ghost">Warning</span>: Rapidly drains <span class="color-energy">energy</span></li>
+                        <li>Drain <span class="color-energy">30%</span> <span class="color-energy">energy</span> on use, and <span class="color-energy">20%</span> per second</li>
+                        <li>Find <span class="color-ghost">ghost</span> room visually</li>
+                        <li>When used without enough <span class="color-energy">energy</span>: breaks and triggers a <span class="color-hunt">CURSED HUNT</span></li>
+                    </ul>
+                </div>
+                <div class="info-card">
+                    <h3>🔍 <span class="color-tool">Magnifying Glass</span></h3>
+                    <ul>
+                        <li>Drains <span class="color-energy">3%</span> <span class="color-energy">energy</span> per second</li>
+                        <li>View the <span class="color-ghost">ghost's</span> current position through the glass</li>
+                        <li>When used without enough <span class="color-energy">energy</span>: breaks and triggers a <span class="color-hunt">CURSED HUNT</span></li>
+                    </ul>
+                </div>
+                <div class="info-card">
+                    <h3>🎵 <span class="color-tool">Music Box</span></h3>
+                    <ul>
+                        <li>Drains <span class="color-energy">2.5%</span> <span class="color-energy">energy</span> per second</li>
+                        <li>Confirms the <span class="color-ghost">ghost</span> room by <span class="color-ghost">ghost</span> singing</li>
+                        <li>Stun Dybbuks</li>
+                        <li>When used without enough <span class="color-energy">energy</span>: music reverses triggers a <span class="color-hunt">CURSED HUNT</span></li>
+                    </ul>
+                </div>
+                <div class="info-card">
+                    <h3>🪞 <span class="color-tool">Summoning Circle</span></h3>
+                    <ul>
+                        <li><span class="color-ghost">Warning</span>: Triggers a <span class="color-hunt">CURSED HUNT</span></li>
+                        <li>Light 5 candles, draining <span class="color-energy">10%</span> <span class="color-energy">energy</span> each, totaling <span class="color-energy">50%</span> <span class="color-energy">energy</span></li>
+                        <li>Temporarily traps the <span class="color-ghost">ghost</span> in place</li>
+                        <li>Take photo of <span class="color-ghost">ghost</span> for extra money while the <span class="color-ghost">ghost</span> is trapped temporarily in place</li>
+                        <li>Traps last user in the room by flickering doors when <span class="color-ghost">ghost</span> is trapped</li>
+                        <li>Glows blue for Spirit (or Skinwalker mimicked)</li>
+                        <li>Handprints > Spirit</li>
+                        <li>Freezing Temps / Ghost Orb > Skinwalker</li>
+                    </ul>
+                </div>
+                <div class="info-card">
+                    <h3>📜 <span class="color-tool">Umbra Board</span></h3>
+                    <ul>
+                        <li>Drains <span class="color-energy">40%</span> or less <span class="color-energy">energy</span> per use</li>
+                        <li>Exchange <span class="color-energy">energy</span> for information</li>
+                        <li>Shows 3 questions at a time</li>
+                        <li>Reset with a low cost question</li>
+                        <li>When used without enough <span class="color-energy">energy</span>: levitates, breaks and triggers a <span class="color-hunt">CURSED HUNT</span></li>
+                    </ul>
+                    <table class="simple-data-table">
+                        <thead>
+                            <tr><th>Question</th><th>Function</th><th>Answers</th><th>Energy Depleted</th></tr>
+                        </thead>
+                        <tbody>
+                            <tr><td>Where are you?</td><td>Gives the current location of the ghost</td><td>The current room the ghost is in.</td><td>40%</td></tr>
+                            <tr><td>What is your room?</td><td rowspan="3">Gives players the ghost room.</td><td rowspan="3">The room's name.</td><td rowspan="3">40%</td></tr>
+                            <tr><td>Where is the ghost room?</td></tr>
+                            <tr><td>What's your room?</td></tr>
+                            <tr><td>How old are you?</td><td rowspan="2">Provide players the ghost's age. The ghost's age is a randomly generated and currently cannot be used to determine the ghost's type.</td><td rowspan="2">Gives players the ghost's age. Provides a random number from 1-99.</td><td rowspan="2">5%</td></tr>
+                            <tr><td>What is your age?</td></tr>
+                            <tr><td>Are you here?</td><td rowspan="3">Can be used to determine whether if the ghost is currently in the same room as the person who asked the question.</td><td rowspan="3">Answers "yes" if the player is in range of the ghost and "no" if not.</td><td rowspan="3">20%</td></tr>
+                            <tr><td>Are you near?</td></tr>
+                            <tr><td>Are you far?</td></tr>
+                            <tr><td>Hide and seek</td><td>Can be used to start a hunt.</td><td>Gives a brief countdown from 5 before breaking and initiating a hunt.</td><td>20%</td></tr>
+                            <tr><td>What's my energy?</td><td rowspan="3">Can be used to get an exact number on how much energy you currently have.</td><td rowspan="3">Answers the amount of energy you have inclusive of the 5% energy depletion from asking the question.</td><td rowspan="3">5%</td></tr>
+                            <tr><td>How healthy am I?</td></tr>
+                            <tr><td>How tired am I?</td></tr>
+                            <tr><td>Hide and Seek</td><td>Can be used to trigger a Cursed Hunt.</td><td>Causes a 5-second countdown, triggering a cursed hunt and rendering the Umbra Board unusable.</td><td>N/A</td></tr>
+                            <tr><th colspan="4" style="text-align:center;"><b>Easter Eggs</b></th></tr>
+                            <tr><td>Who you gonna call?</td><td rowspan="4">A single response meant to be easter eggs.</td><td>"GHOSTBUSTERS"</td><td rowspan="4">5%</td></tr>
+                            <tr><td>Marco</td><td>"POLO"</td></tr>
+                            <tr><td>What do you dream about?</td><td>"PONY WITH MUSCLES"</td></tr>
+                            <tr><td>Knock Knock</td><td>"WHOS THERE"</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="sub-photos" class="info-sub-view">
+                <div class="info-card">
+                    <h3>📷 <span class="color-tool">Photo Camera</span></h3>
+                    <p>Starting from v1.10.0, <span class="color-tool">Photo Camera</span> will now also reward a higher score based on the closest proximity subject to the center of the shot over distance from camera.</p>
+                    <table class="simple-data-table">
+                        <thead>
+                            <tr>
+                                <th rowspan="2">Photo</th>
+                                <th colspan="3" style="text-align:center;">Money Earned</th>
+                            </tr>
+                            <tr>
+                                <th style="text-align:center;">⭐⭐⭐</th>
+                                <th style="text-align:center;">⭐⭐</th>
+                                <th style="text-align:center;">⭐</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Ghost</td>
+                                <td style="text-align:center;">$24</td>
+                                <td style="text-align:center;">$12</td>
+                                <td style="text-align:center;">$6</td>
+                            </tr>
+                            <tr>
+                                <td>Burnt Cross</td>
+                                <td rowspan="3" style="text-align:center;vertical-align:middle;">$12</td>
+                                <td rowspan="3" style="text-align:center;vertical-align:middle;">$8</td>
+                                <td rowspan="3" style="text-align:center;vertical-align:middle;">$4</td>
+                            </tr>
+                            <tr>
+                                <td>Corpse</td>
+                            </tr>
+                            <tr>
+                                <td>Friendly Fire</td>
+                            </tr>
+                            <tr>
+                                <td>Withered Flowers</td>
+                                <td rowspan="2" style="text-align:center;vertical-align:middle;">$8</td>
+                                <td rowspan="2" style="text-align:center;vertical-align:middle;">$4</td>
+                                <td rowspan="2" style="text-align:center;vertical-align:middle;">$2</td>
+                            </tr>
+                            <tr>
+                                <td>Inscription</td>
+                            </tr>
+                            <tr>
+                                <td>Prints</td>
+                                <td rowspan="4" style="text-align:center;vertical-align:middle;">$4</td>
+                                <td rowspan="4" style="text-align:center;vertical-align:middle;">$2</td>
+                                <td rowspan="4" style="text-align:center;vertical-align:middle;">$1</td>
+                            </tr>
+                            <tr>
+                                <td>Disturbed Salt</td>
+                            </tr>
+                            <tr>
+                                <td>Cursed Object</td>
+                            </tr>
+                            <tr>
+                                <td>Interaction</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <p style="margin-top:15px;"><b>Tips and tricks</b>:</p>
+                    <ul>
+                        <li>Make sure to have the subject as close to you as possible and is at the center of your camera before you capture for a 3 star-rated photo, as you will acquire less money for a 2-star or 1-star photograph. Crouching is a good way to get closer to your subject, depending on what it is (ex: "Disturbed Salt", "Burnt Cross").</li>
+                        <li>Ensure to take a picture of the Umbra Board before use, as a broken Umbra Board will no longer count as a Cursed Object in photographs.</li>
+                        <li>Use the Summoning Circle as an easy way to get a "Ghost" photo during the few seconds of the ghost manifesting and before it starts the Cursed Hunt. Similarly, ensure to take a picture of the Summoning Circle before use, as the photograph may recognize a photo of the Ghost as a photo of a "Cursed Object" instead.</li>
+                        <li>Closing the closet door is purely optional as being in the locker/closet already guarantees your safety (unless it is a Vesper). Seize the opportunity to take a photo!</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div id="sub-chat-commands" class="info-sub-view">
+                <div class="info-card">
+                    <h3>💬 <span class="color-tool">Roblox Chat Commands</span></h3>
+                    <p>Outside of hunts, asking these questions in the Roblox chat has a 20% chance of succeeding, each with a separate 20 seconds countdown.</p>
+                    <table class="simple-data-table" style="margin-top:15px;">
+                        <thead>
+                            <tr>
+                                <th>Command</th>
+                                <th>Effect</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>"Show yourself"</td>
+                                <td>The ghost will become visible for a few seconds, allowing for a quick photo.</td>
+                            </tr>
+                            <tr>
+                                <td>"Give me a sign"</td>
+                                <td>The ghost will cause the lights in the current room to flicker ONLY IF the current room is the ghost room.</td>
+                            </tr>
+                            <tr>
+                                <td>"Can you write in the book"</td>
+                                <td>The ghost will write in the Spirit Book if they have the corresponding evidence.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="sub-emf" class="info-sub-view">
+                <div class="info-card">
+                    <h3>📟 <span class="color-tool">EMF Levels</span></h3>
+                    <table class="simple-data-table">
+                        <thead>
+                            <tr>
+                                <th>EMF Reading</th>
+                                <th>Activity Type</th>
+                                <th>Audio</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr class="emf-row-1">
+                                <td>Level 1</td>
+                                <td>No Activity</td>
+                                <td>None</td>
+                            </tr>
+                            <tr class="emf-row-2">
+                                <td>Level 2</td>
+                                <td>Other Paranormal Evidences</td>
+                                <td><audio controls src="https://demonology.lol/audio/emf2.mp3"></audio></td>
+                            </tr>
+                            <tr class="emf-row-3">
+                                <td>Level 3</td>
+                                <td>Interactions</td>
+                                <td><audio controls src="https://demonology.lol/audio/emf3.mp3"></audio></td>
+                            </tr>
+                            <tr class="emf-row-4">
+                                <td>Level 4</td>
+                                <td>Ghost Events</td>
+                                <td><audio controls src="https://demonology.lol/audio/emf4.mp3"></audio></td>
+                            </tr>
+                            <tr class="emf-row-5">
+                                <td>Level 5</td>
+                                <td>EMF Evidence</td>
+                                <td><audio controls src="https://demonology.lol/audio/emf5.mp3"></audio></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="sub-difficulty" class="info-sub-view">
+                <div class="info-card">
+                    <h3>⚔️ <span class="color-tool">Difficulty</span></h3>
+                    <p style="margin-bottom: 20px;">
+                        In Demonology, party leaders can adjust the difficulty of the job which can range from Easy to Nightmare. Each difficulty has its own reward multiplier for each successful job where easier difficulties have a lower multiplier compared to harder difficulties. Some game mechanics may be enhanced or reduced based on the difficulty.
+                    </p>
+                    
+                    <div class="difficulty-card" style="margin-bottom:15px; padding:15px; border-radius:8px; border:1px solid #3e3e46; background:#1e1e24;">
+                        <h4 style="font-size:18px; color:#fff; margin-bottom:8px;">Easy</h4>
+                        <p style="color:#a0a0a0; font-size:14px; margin-bottom:10px;">Easy Mode is the beginner difficulty in the game as it is modified to be easier than Medium. This difficulty comes with a higher chance to gain evidence, little ghost hunts, but has the smallest reward multiplier.</p>
+                        <ul style="color:#e0e0e0; font-size:14px; padding-left:20px;">
+                            <li>1x rewards</li>
+                            <li>Slower Energy drain</li>
+                            <li>Ghosts will hunt when the players average energy reaches ≤ 25%</li>
+                            <li>Higher frequency of evidence-based interactions (ex: Laser Projector, Freezing Temperatures, Ghost Writing, etc.)</li>
+                            <li>Fuse box is automatically powered on</li>
+                            <li>All ghosts will stop hunting after a kill</li>
                         </ul>
-                    </li>
-                </ul>
-                <table class="simple-data-table">
-                    <thead>
-                        <tr><th>Reading</th><th>Effect</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td>Darkness Gnaws At You</td><td>Removes <span class="color-energy">-40% energy</span> from you immediately.</td></tr>
-                        <tr><td>The Presence Will Stir</td><td>Causes a random <span class="color-ghost">ghost event</span> to trigger.</td></tr>
-                        <tr><td>They Come For You Now</td><td>Starts a <span class="color-hunt">Cursed Hunt</span>.</td></tr>
-                        <tr><td>Your Time Has Come</td><td>Immediately die. A custom death screen will appear with the words: "The Fortune Teller Reaps Your Soul".</td></tr>
-                        <tr><td>Your Eyes Are For Granted</td><td>Your screen will be blurry for a minute.</td></tr>
-                        <tr><td>The Wind Acts Upon Us</td><td>Suddenly closes all of the doors in the Job Site (makes the same sound effect as when the front door is closed at the start of a hunt).</td></tr>
-                        <tr><td>There Is No Escape</td><td>Any closed doors cannot be opened temporarily; it will return to normal after a few seconds.</td></tr>
-                        <tr><td>Ghosts Retreat For You</td><td>The <span class="color-ghost">ghost</span> will return to their favorite room, regardless of when it's hunting or roaming.</td></tr>
-                        <tr><td>All You Need Is A Second Chance</td><td>A Fortune Coin appears in your inventory.</td></tr>
-                        <tr><td>You Gain The Cursed Favor</td><td>Makes a random new <span class="color-tool">Cursed Object</span> appear in any of the spawn locations in the Job Site.</td></tr>
-                        <tr><td>Warmth Returns To Your Soul</td><td>Restores <span class="color-energy">+50% energy</span> to you immediately.</td></tr>
-                        <tr><td>A Calming Presence Welcomes You</td><td>Restores <span class="color-energy">+30% energy</span> to each person present immediately.</td></tr>
-                        <tr><td>Your Tarot Should Be Read</td><td>Activates a random Perk that is absent from the setup.</td></tr>
-                    </tbody>
-                </table>
+                    </div>
+
+                    <div class="difficulty-card" style="margin-bottom:15px; padding:15px; border-radius:8px; border:1px solid #3e3e46; background:#1e1e24;">
+                        <h4 style="font-size:18px; color:#fff; margin-bottom:8px;">Medium</h4>
+                        <p style="color:#a0a0a0; font-size:14px; margin-bottom:10px;">Medium Mode is likely the default version of the game with no aspects increased or decreased, besides the increase of rewards from Easy Mode.</p>
+                        <ul style="color:#e0e0e0; font-size:14px; padding-left:20px;">
+                            <li>1.25x rewards</li>
+                            <li>Ghosts will hunt when the players average energy reaches ≤ 50%</li>
+                        </ul>
+                    </div>
+
+                    <div class="difficulty-card" style="margin-bottom:15px; padding:15px; border-radius:8px; border:1px solid #3e3e46; background:#1e1e24;">
+                        <h4 style="font-size:18px; color:#fff; margin-bottom:8px;">Hard</h4>
+                        <p style="color:#a0a0a0; font-size:14px; margin-bottom:10px;">Hard Mode is the difficulty for more experienced people trying to reach a minimum challenge or more rewards.</p>
+                        <ul style="color:#e0e0e0; font-size:14px; padding-left:20px;">
+                            <li>1.5x rewards</li>
+                            <li>Ghosts will hunt when the players average energy reaches ≤ 75%</li>
+                        </ul>
+                    </div>
+
+                    <div class="difficulty-card" style="padding:15px; border-radius:8px; border:1px solid #3e3e46; background:#1e1e24;">
+                        <h4 style="font-size:18px; color:#fff; margin-bottom:8px;">Nightmare</h4>
+                        <p style="color:#a0a0a0; font-size:14px; margin-bottom:10px;">Nightmare Mode is the toughest difficulty in the game excluding runs that are customized to be more difficult. This difficulty comes with dangerous ghost hunts, higher ghost aggression, and a more difficult time to gather evidence. This difficulty was revamped in V1.1.0.</p>
+                        <ul style="color:#e0e0e0; font-size:14px; padding-left:20px; margin-bottom:10px;">
+                            <li>2x rewards</li>
+                            <li>No setup duration</li>
+                            <li>Higher hunt frequency, longer hunt durations (36.5s), no grace period, and decreased hunt cooldowns (25s)</li>
+                            <li>Start at 75% energy, below hunt threshold (85%)</li>
+                            <li>Energy Monitor is broken</li>
+                            <li>Energy Drinks regen 30% energy</li>
+                            <li>Ghost Room changes over time</li>
+                            <li>Evidence-specific changes:
+                                <ul style="padding-left:20px; margin-top:5px;">
+                                    <li>Handprints last for 60 seconds instead of 120 seconds</li>
+                                    <li>Wither reflects on the site after 8 minutes instead of 3 minutes</li>
+                                </ul>
+                            </li>
+                            <li>Higher frequency of aggression-based interactions (ex: breaking glass, throwing objects, etc.)</li>
+                            <li>No Cursed Objects</li>
+                        </ul>
+                        <p style="color:#a0a0a0; font-size:14px; font-style:italic;">Tip: Drinking one Energy Drink after starting the job gives you about 100 seconds before a hunt can start.</p>
+                    </div>
+
+                    <p style="margin-top:20px; font-size:14px; color:#a0a0a0;">In v1.10.0, the maximum multiplier for custom is 4.07x.</p>
+                </div>
             </div>
 
-            <div class="info-card">
-                <h3>🪞 <span class="color-tool">Haunted Mirror</span></h3>
-                <ul>
-                    <li><span class="color-ghost">Warning</span>: Rapidly drains <span class="color-energy">energy</span></li>
-                    <li>Drain <span class="color-energy">30%</span> <span class="color-energy">energy</span> on use, and <span class="color-energy">20%</span> per second</li>
-                    <li>Find <span class="color-ghost">ghost</span> room visually</li>
-                    <li>When used without enough <span class="color-energy">energy</span>: breaks and triggers a <span class="color-hunt">CURSED HUNT</span></li>
-                </ul>
-            </div>
-
-            <div class="info-card">
-                <h3>🔍 <span class="color-tool">Magnifying Glass</span></h3>
-                <ul>
-                    <li>Drains <span class="color-energy">3%</span> <span class="color-energy">energy</span> per second</li>
-                    <li>View the <span class="color-ghost">ghost's</span> current position through the glass</li>
-                    <li>When used without enough <span class="color-energy">energy</span>: breaks and triggers a <span class="color-hunt">CURSED HUNT</span></li>
-                </ul>
-            </div>
-
-            <div class="info-card">
-                <h3>🎵 <span class="color-tool">Music Box</span></h3>
-                <ul>
-                    <li>Drains <span class="color-energy">2.5%</span> <span class="color-energy">energy</span> per second</li>
-                    <li>Confirms the <span class="color-ghost">ghost</span> room by <span class="color-ghost">ghost</span> singing</li>
-                    <li>Stun Dybbuks</li>
-                    <li>When used without enough <span class="color-energy">energy</span>: music reverses triggers a <span class="color-hunt">CURSED HUNT</span></li>
-                </ul>
-            </div>
-
-            <div class="info-card">
-                <h3>🌀 <span class="color-tool">Summoning Circle</span></h3>
-                <ul>
-                    <li><span class="color-ghost">Warning</span>: Triggers a <span class="color-hunt">CURSED HUNT</span></li>
-                    <li>Light 5 candles, draining <span class="color-energy">10%</span> <span class="color-energy">energy</span> each, totaling <span class="color-energy">50%</span> <span class="color-energy">energy</span></li>
-                    <li>Temporarily traps the <span class="color-ghost">ghost</span> in place</li>
-                    <li>Take photo of <span class="color-ghost">ghost</span> for extra money while the <span class="color-ghost">ghost</span> is trapped temporarily in place</li>
-                    <li>Traps last user in the room by flickering doors when <span class="color-ghost">ghost</span> is trapped</li>
-                    <li>Glows blue for Spirit (or Skinwalker mimicked)</li>
-                    <li>Handprints > Spirit</li>
-                    <li>Freezing Temps / Ghost Orb > Skinwalker</li>
-                </ul>
-            </div>
-
-            <div class="info-card">
-                <h3>📜 <span class="color-tool">Umbra Board</span></h3>
-                <ul>
-                    <li>Drains <span class="color-energy">40%</span> or less <span class="color-energy">energy</span> per use</li>
-                    <li>Exchange <span class="color-energy">energy</span> for information</li>
-                    <li>Shows 3 questions at a time</li>
-                    <li>Reset with a low cost question</li>
-                    <li>When used without enough <span class="color-energy">energy</span>: levitates, breaks and triggers a <span class="color-hunt">CURSED HUNT</span></li>
-                </ul>
-                <table class="simple-data-table">
-                    <thead>
-                        <tr><th>Question</th><th>Function</th><th>Answers</th><th>Energy Depleted</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td>Where are you?</td><td>Gives the current location of the ghost</td><td>The current room the ghost is in.</td><td>40%</td></tr>
-                        <tr><td>What is your room?</td><td rowspan="3">Gives players the ghost room.</td><td rowspan="3">The room's name.</td><td rowspan="3">40%</td></tr>
-                        <tr><td>Where is the ghost room?</td></tr>
-                        <tr><td>What's your room?</td></tr>
-                        <tr><td>How old are you?</td><td rowspan="2">Provide players the ghost's age. The ghost's age is a randomly generated and currently cannot be used to determine the ghost's type.</td><td rowspan="2">Gives players the ghost's age. Provides a random number from 1-99.</td><td rowspan="2">5%</td></tr>
-                        <tr><td>What is your age?</td></tr>
-                        <tr><td>Are you here?</td><td rowspan="3">Can be used to determine whether if the ghost is currently in the same room as the person who asked the question.</td><td rowspan="3">Answers "yes" if the player is in range of the ghost and "no" if not.</td><td rowspan="3">20%</td></tr>
-                        <tr><td>Are you near?</td></tr>
-                        <tr><td>Are you far?</td></tr>
-                        <tr><td>Hide and seek</td><td>Can be used to start a hunt.</td><td>Gives a brief countdown from 5 before breaking and initiating a hunt.</td><td>20%</td></tr>
-                        <tr><td>What's my energy?</td><td rowspan="3">Can be used to get an exact number on how much energy you currently have.</td><td rowspan="3">Answers the amount of energy you have inclusive of the 5% energy depletion from asking the question.</td><td rowspan="3">5%</td></tr>
-                        <tr><td>How healthy am I?</td></tr>
-                        <tr><td>How tired am I?</td></tr>
-                        <tr><td>Hide and Seek</td><td>Can be used to trigger a Cursed Hunt.</td><td>Causes a 5-second countdown, triggering a cursed hunt and rendering the Umbra Board unusable.</td><td>N/A</td></tr>
-                        <tr><th colspan="4" style="text-align:center;"><b>Easter Eggs</b></th></tr>
-                        <tr><td>Who you gonna call?</td><td rowspan="4">A single response meant to be easter eggs.</td><td>"GHOSTBUSTERS"</td><td rowspan="4">5%</td></tr>
-                        <tr><td>Marco</td><td>"POLO"</td></tr>
-                        <tr><td>What do you dream about?</td><td>"PONY WITH MUSCLES"</td></tr>
-                        <tr><td>Knock Knock</td><td>"WHOS THERE"</td></tr>
-                    </tbody>
-                </table>
+            <div id="sub-ghost-models" class="info-sub-view">
+                <div class="info-card">
+                    <h3>👻 <span class="color-tool">Ghost Models</span></h3>
+                    <div class="ghost-models-container">
+                        <div class="ghost-models-column">
+                            <h4 class="gender-label">Male</h4>
+                            <div class="ghost-model-card">
+                                <img src="https://demonology.lol/image/biter.png" alt="Biter">
+                            </div>
+                            <div class="ghost-model-card">
+                                <img src="https://demonology.lol/image/drratched.png" alt="Dr. Ratched">
+                            </div>
+                            <div class="ghost-model-card">
+                                <img src="https://demonology.lol/image/marrow.png" alt="Marrow">
+                            </div>
+                            <div class="ghost-model-card">
+                                <img src="https://demonology.lol/image/mouthpiece.png" alt="Mouthpiece">
+                            </div>
+                        </div>
+                        <div class="ghost-models-column">
+                            <h4 class="gender-label">Female</h4>
+                            <div class="ghost-model-card">
+                                <img src="https://demonology.lol/image/abaddon.png" alt="Abaddon">
+                            </div>
+                            <div class="ghost-model-card">
+                                <img src="https://demonology.lol/image/leech.png" alt="Leech">
+                            </div>
+                            <div class="ghost-model-card">
+                                <img src="https://demonology.lol/image/rattle.png" alt="Rattle">
+                            </div>
+                            <div class="ghost-model-card">
+                                <img src="https://demonology.lol/image/watcher.png" alt="Watcher">
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
-    <div id="photo-view" class="view-content info-tab-view">
-        <div class="content-width-wrapper">
-            <div class="info-card">
-                <h3>📷 <span class="color-tool">Photo Camera</span></h3>
-                <p>Starting from v1.10.0, <span class="color-tool">Photo Camera</span> will now also reward a higher score based on the closest proximity subject to the center of the shot over distance from camera.</p>
-                <table class="simple-data-table">
-                    <thead>
-                        <tr>
-                            <th rowspan="2">Photo</th>
-                            <th colspan="3" style="text-align:center;">Money Earned</th>
-                        </tr>
-                        <tr>
-                            <th style="text-align:center;">⭐⭐⭐</th>
-                            <th style="text-align:center;">⭐⭐</th>
-                            <th style="text-align:center;">⭐</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>Ghost</td>
-                            <td style="text-align:center;">$24</td>
-                            <td style="text-align:center;">$12</td>
-                            <td style="text-align:center;">$6</td>
-                        </tr>
-                        <tr>
-                            <td>Burnt Cross</td>
-                            <td rowspan="3" style="text-align:center;vertical-align:middle;">$12</td>
-                            <td rowspan="3" style="text-align:center;vertical-align:middle;">$8</td>
-                            <td rowspan="3" style="text-align:center;vertical-align:middle;">$4</td>
-                        </tr>
-                        <tr>
-                            <td>Corpse</td>
-                        </tr>
-                        <tr>
-                            <td>Friendly Fire</td>
-                        </tr>
-                        <tr>
-                            <td>Withered Flowers</td>
-                            <td rowspan="2" style="text-align:center;vertical-align:middle;">$8</td>
-                            <td rowspan="2" style="text-align:center;vertical-align:middle;">$4</td>
-                            <td rowspan="2" style="text-align:center;vertical-align:middle;">$2</td>
-                        </tr>
-                        <tr>
-                            <td>Inscription</td>
-                        </tr>
-                        <tr>
-                            <td>Prints</td>
-                            <td rowspan="4" style="text-align:center;vertical-align:middle;">$4</td>
-                            <td rowspan="4" style="text-align:center;vertical-align:middle;">$2</td>
-                            <td rowspan="4" style="text-align:center;vertical-align:middle;">$1</td>
-                        </tr>
-                        <tr>
-                            <td>Disturbed Salt</td>
-                        </tr>
-                        <tr>
-                            <td>Cursed Object</td>
-                        </tr>
-                        <tr>
-                            <td>Interaction</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <p style="margin-top:15px;"><b>Tips and tricks</b>:</p>
-                <ul>
-                    <li>Make sure to have the subject as close to you as possible and is at the center of your camera before you capture for a 3 star-rated photo, as you will acquire less money for a 2-star or 1-star photograph. Crouching is a good way to get closer to your subject, depending on what it is (ex: "Disturbed Salt", "Burnt Cross").</li>
-                    <li>Ensure to take a picture of the Umbra Board before use, as a broken Umbra Board will no longer count as a Cursed Object in photographs.</li>
-                    <li>Use the Summoning Circle as an easy way to get a "Ghost" photo during the few seconds of the ghost manifesting and before it starts the Cursed Hunt. Similarly, ensure to take a picture of the Summoning Circle before use, as the photograph may recognize a photo of the Ghost as a photo of a "Cursed Object" instead.</li>
-                    <li>Closing the closet door is purely optional as being in the locker/closet already guarantees your safety (unless it is a Vesper). Seize the opportunity to take a photo!</li>
-                </ul>
-                <p style="margin-top:15px;"><b>Roblox chat commands:</b></p>
-                <p style="margin-top:5px;">Outside of hunts, asking these questions in the Roblox chat has a 20% chance of succeeding, each with a separate 20 seconds countdown.</p>
-                <table class="simple-data-table" style="margin-top:10px;">
-                    <thead>
-                        <tr>
-                            <th>Command</th>
-                            <th>Effect</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td>"Show yourself"</td>
-                            <td>The ghost will become visible for a few seconds, allowing for a quick photo.</td>
-                        </tr>
-                        <tr>
-                            <td>"Give me a sign"</td>
-                            <td>The ghost will cause the lights in the current room to flicker ONLY IF the current room is the ghost room.</td>
-                        </tr>
-                        <tr>
-                            <td>"Can you write in the book"</td>
-                            <td>The ghost will write in the Spirit Book if they have the corresponding evidence.</td>
-                        </tr>
-                    </tbody>
-                </table>
-                <p style="margin-top:15px; font-style: italic; color: #a0a0a0;">p.s. photo camera is so expensive plz make it cheaper, the photos can't even pay itself back</p>
-            </div>
-        </div>
-    </div>
 
     <div id="objective-view" class="view-content">
         <div class="objective-container" id="objective-dom-root">
@@ -1416,7 +2111,7 @@ Show difficulty table
                 </div>
                 <div class="meta-box">
                     <label>Last Updated</label>
-                    <span>2026/06/20</span>
+                    <span>2026/07/10</span>
                 </div>
             </div>
             <div class="credits-support">
@@ -1452,23 +2147,23 @@ Show difficulty table
         ];
 
         const ghostsData = [
-            { name: "Aswang", evidences: ["EMF Level 5", "Inscription", "Wither"], traits: ["Speed increases every time they kill", "Salt slows them"] },
+            { name: "Aswang", evidences: ["EMF Level 5", "Inscription", "Wither"], traits: ["Speed increases by 20% every kill", "Salt (even disturbed ones) slows them"] },
             { name: "Banshee", evidences: ["Freezing Temperatures", "Ghost Orb", "Prints"], traits: ["Can break multiple windows/mirrors at once", "Can sometimes let out a unique wail at the start of its hunt"] },
             { name: "Demon", evidences: ["EMF Level 5", "Freezing Temperatures", "Prints"], traits: ["Hunts frequently", "Crosses have a larger range and cause them to float upon burning"] },
-            { name: "Dullahan", evidences: ["Freezing Temperatures", "Laser Projector", "Wither"], traits: ["Appear headless in photos, the Photo Camera will be useful", "Increases in speed the longer someone is within line-of-sight"] },
-            { name: "Dybbuk", evidences: ["Freezing Temperatures", "Prints", "Wither"], traits: ["Stunned after music box first played", "Can throw corpses"] },
+            { name: "Dullahan", evidences: ["Freezing Temperatures", "Laser Projector", "Wither"], traits: ["Appear headless in photos(though other ghosts can be glitched and show the same effect)", "Increases in speed the longer someone is within line-of-sight"] },
+            { name: "Dybbuk", evidences: ["Freezing Temperatures", "Prints", "Wither"], traits: ["Stunned for 3s after music box first played", "Can throw corpses"] },
             { name: "Entity", evidences: ["Prints", "Laser Projector", "Spirit Box"], traits: ["Able to teleport between rooms", "Can teleport objects indicated by a smoke effect"] },
             { name: "Ghoul", evidences: ["Freezing Temperatures", "Ghost Orb", "Spirit Box"], traits: ["Excessive messages in chat will cause a hunt", "Can't disable electronics"] },
-            { name: "Keres", evidences: ["Prints", "Spirit Box", "Wither"], traits: ["Speed decreases every time they kill", "Targets the hunter with the least energy / (SOLO) Will target if you are below 90% energy", "Respond with a female voice"] },
+            { name: "Keres", evidences: ["Prints", "Spirit Box", "Wither"], traits: ["Female voice/ghost model", "Speed decreases by 10% every kill", "Targets the hunter with the least energy(though can kill others in crossfire)", "(SOLO) Will target if you are below 90% energy"] },
             { name: "Leviathan", evidences: ["Inscription", "Prints", "Ghost Orb"], traits: ["Flicker equipment and disable lights outside of hunts"] },
-            { name: "Nightmare", evidences: ["EMF Level 5", "Ghost Orb", "Spirit Box"], traits: ["Can cause auditory hallucinations", "Afraid of lit rooms"] },
-            { name: "Oni", evidences: ["Freezing Temperatures", "Laser Projector", "Spirit Box"], traits: ["Extremely fast during hunts", "More likely to start ghost events and show its appearance"] },
+            { name: "Nightmare", evidences: ["EMF Level 5", "Ghost Orb", "Spirit Box"], traits: ["Can cause auditory hallucinations(fake glass break)", "Afraid of lit rooms"] },
+            { name: "Oni", evidences: ["Freezing Temperatures", "Laser Projector", "Spirit Box"], traits: ["Extremely fast during hunts(with noticably fast footsteps)", "More likely to manifest", "Manifest: Visible ghost + Standing still + Screaming + Shatter lightbulbs in current room"] },
             { name: "Phantom", evidences: ["EMF Level 5", "Prints", "Ghost Orb"], traits: ["Blinks in-and-out slower", "Moves faster while invisible during hunts"] },
             { name: "Ravager", evidences: ["EMF Level 5", "Inscription", "Spirit Box"], traits: ["Can create a \"vortex\" capable of pulling nearby objects into a tornado", "All ghost events will leave behind EMF Level 5 evidence (even with zero evidence settings)", "Can throw multiple objects at once"] },
             { name: "Revenant", evidences: ["EMF Level 5", "Freezing Temperatures", "Inscription"], traits: ["Low hunting cooldown", "Stops hunting once a player is killed"] },
             { name: "Shadow", evidences: ["EMF Level 5", "Inscription", "Laser Projector"], traits: ["Lower temperature changes", "Less likely to perform ghost activity in lit rooms"] },
-            { name: "Siren", evidences: ["EMF Level 5", "Spirit Box", "Wither"], traits: ["Respond with a female voice", "Anyone within line-of-sight will be slowed down", "Can sing in a Spirit box (\"-HUMMING-\") instead of answering a question"] },
-            { name: "Skinwalker", evidences: ["Freezing Temperatures", "Inscription", "Spirit Box", "Ghost Orb"], traits: ["Fakes the Ghost Orb evidence", "Mimics other ghosts' abilities"] },
+            { name: "Siren", evidences: ["EMF Level 5", "Spirit Box", "Wither"], traits: ["Female voice/ghost model", "Anyone within line-of-sight will be slowed down", "Can sing in a Spirit box (\"-HUMMING-\") instead of answering a question"] },
+            { name: "Skinwalker", evidences: ["Freezing Temperatures", "Inscription", "Spirit Box", "Ghost Orb"], traits: ["Fakes a single Ghost Orb visible even in no evidence", "Mimics other ghosts' abilities(often vex/banshee)"] },
             { name: "Specter", evidences: ["EMF Level 5", "Freezing Temperatures", "Laser Projector"], traits: ["Throw items frequently", "Do not roam and will only stick to their ghost room except while hunting"] },
             { name: "Spirit", evidences: ["Inscription", "Prints", "Spirit Box"], traits: ["Can alter lit up candles to blue"] },
             { name: "The Wisp", evidences: ["Laser Projector", "Ghost Orb", "Wither"], traits: ["Can walk through lines of fire", "Can only start a hunt when player is in the ghost's favorite room", "Can light up candles"] },
@@ -1503,6 +2198,147 @@ Show difficulty table
         let mimicryChallengeActive = false;
         let manuallyRejectedGhosts = {};
 
+        // --- Supabase Sync Logic ---
+        const SUPABASE_URL = 'https://lcllpwrjcatzevvgavjb.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxjbGxwd3JqY2F0emV2dmdhdmpiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzMDE0MjQsImV4cCI6MjA5OTg3NzQyNH0.RFqD6nHIQ_TThCt9_MlOPaFUJeNMXAjDelS0mmH3i2A';
+        let supabase = null;
+        let syncChannel = null;
+        let currentSessionId = null;
+        let isProcessingRemoteUpdate = false;
+
+        if (SUPABASE_ANON_KEY !== 'YOUR_SUPABASE_ANON_KEY') {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+
+        async function toggleSyncSession() {
+            if (currentSessionId) {
+                leaveSyncSession();
+            } else {
+                const sessionId = document.getElementById('sync-session-id').value.trim();
+                if (!sessionId) {
+                    showFeedback('Please enter a Session ID');
+                    return;
+                }
+                joinSyncSession(sessionId);
+            }
+        }
+
+        async function joinSyncSession(sessionId) {
+            if (!supabase) {
+                showFeedback('Please configure your Supabase Anon Key');
+                return;
+            }
+
+            currentSessionId = sessionId;
+            const statusEl = document.getElementById('sync-status');
+            const joinBtn = document.getElementById('sync-join-btn');
+            const sessionLinkRow = document.getElementById('session-link-row');
+
+            statusEl.textContent = 'Connecting...';
+            joinBtn.textContent = 'Leave';
+
+            // 1. Initial Fetch
+            const { data, error } = await supabase
+                .from('sync_sessions')
+                .select('sharecode')
+                .eq('id', sessionId)
+                .single();
+
+            if (error) {
+                // If not found, create it with current state
+                const initialCode = generateShareCode();
+                const { error: createError } = await supabase
+                    .from('sync_sessions')
+                    .insert([{ id: sessionId, sharecode: initialCode }]);
+                
+                if (createError) {
+                    showFeedback('Failed to create/join session');
+                    console.error(createError);
+                    leaveSyncSession();
+                    return;
+                }
+            } else if (data) {
+                isProcessingRemoteUpdate = true;
+                document.getElementById('sharecode-input').value = data.sharecode;
+                applyShareCode();
+                isProcessingRemoteUpdate = false;
+            }
+
+            // 2. Subscribe to Realtime
+            syncChannel = supabase
+                .channel(`session-${sessionId}`)
+                .on('postgres_changes', { 
+                    event: 'UPDATE', 
+                    schema: 'public', 
+                    table: 'sync_sessions', 
+                    filter: `id=eq.${sessionId}` 
+                }, (payload) => {
+                    if (!isProcessingRemoteUpdate) {
+                        isProcessingRemoteUpdate = true;
+                        document.getElementById('sharecode-input').value = payload.new.sharecode;
+                        applyShareCode();
+                        isProcessingRemoteUpdate = false;
+                    }
+                })
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        statusEl.textContent = `Connected to session: ${sessionId}`;
+                        sessionLinkRow.style.display = 'flex';
+                        showFeedback('Connected to live sync');
+                    }
+                });
+        }
+
+        function leaveSyncSession() {
+            if (syncChannel) {
+                supabase.removeChannel(syncChannel);
+                syncChannel = null;
+            }
+            currentSessionId = null;
+            document.getElementById('sync-status').textContent = 'Not connected to a live session.';
+            document.getElementById('sync-join-btn').textContent = 'Join';
+            document.getElementById('session-link-row').style.display = 'none';
+            showFeedback('Left sync session');
+        }
+
+        async function broadcastLocalChange() {
+            if (!currentSessionId || isProcessingRemoteUpdate || !supabase) return;
+
+            const code = generateShareCode();
+            const { error } = await supabase
+                .from('sync_sessions')
+                .update({ sharecode: code, updated_at: new Date() })
+                .eq('id', currentSessionId);
+
+            if (error) console.error('Broadcast failed:', error);
+        }
+
+        function copySessionLink() {
+            if (!currentSessionId) return;
+            const url = new URL(window.location.href);
+            url.searchParams.set('session', currentSessionId);
+            navigator.clipboard.writeText(url.toString()).catch(err => console.error(err));
+            showFeedback('Session link copied!');
+        }
+
+        function handleUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const code = params.get('code');
+            const session = params.get('session');
+
+            if (code) {
+                document.getElementById('sharecode-input').value = code;
+                applyShareCode();
+                showFeedback('Sharecode applied from URL');
+            }
+
+            if (session) {
+                document.getElementById('sync-session-id').value = session;
+                joinSyncSession(session);
+            }
+        }
+        // --- End Supabase Sync Logic ---
+
         function switchTab(tabId, event) {
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.view-content').forEach(view => view.classList.remove('active'));
@@ -1512,6 +2348,65 @@ Show difficulty table
                 document.querySelector(`.tab-btn[onclick*="${tabId}"]`).classList.add('active');
             }
             document.getElementById(`${tabId}-view`).classList.add('active');
+        }
+
+        function switchInfoSubTab(subTabId) {
+            document.querySelectorAll('.info-sub-tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.info-sub-view').forEach(view => view.classList.remove('active'));
+            document.querySelector(`.info-sub-tab-btn[onclick*="${subTabId}"]`).classList.add('active');
+            document.getElementById(`sub-${subTabId}`).classList.add('active');
+            document.getElementById('info-view').classList.toggle('ghost-models-active', subTabId === 'ghost-models');
+        }
+
+        function openSyncPopup() {
+            document.getElementById('sync-popup').classList.add('open');
+            updateShareCodeInput();
+        }
+
+        function closeSyncPopup() {
+            document.getElementById('sync-popup').classList.remove('open');
+        }
+
+        function closeSyncPopupOnBackdrop(event) {
+            if (event.target === event.currentTarget) {
+                closeSyncPopup();
+            }
+        }
+
+        function updateSearchClearVisibility() {
+            const desktopBtn = document.getElementById('search-clear-btn');
+            const hasQuery = document.getElementById('search-bar').value.length > 0;
+            if (desktopBtn) {
+                desktopBtn.classList.toggle('is-hidden', !hasQuery);
+            }
+            // Mobile clear button: enable/disable based on query
+            const mobileBtn = document.getElementById('mobile-search-clear-btn');
+            if (mobileBtn) {
+                mobileBtn.classList.toggle('mobile-clear-active', hasQuery);
+            }
+        }
+
+        function openGhostModelLightbox(src, alt) {
+            if (!window.matchMedia('(min-width: 769px)').matches) return;
+            const img = document.getElementById('ghost-model-lightbox-img');
+            img.src = src;
+            img.alt = alt;
+            document.getElementById('ghost-model-lightbox').classList.add('open');
+        }
+
+        function closeGhostModelLightbox() {
+            document.getElementById('ghost-model-lightbox').classList.remove('open');
+        }
+
+        function setupGhostModelZoom() {
+            document.querySelectorAll('.ghost-model-card img').forEach(img => {
+                img.addEventListener('click', (e) => {
+                    if (window.matchMedia('(min-width: 769px)').matches) {
+                        e.stopPropagation();
+                        openGhostModelLightbox(img.src, img.alt);
+                    }
+                });
+            });
         }
 
         function setupUI() {
@@ -1530,6 +2425,16 @@ Show difficulty table
             });
 
             updateMatrixLogic();
+            setupGhostModelZoom();
+            updateSearchClearVisibility();
+            handleUrlParams();
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeSyncPopup();
+                    closeGhostModelLightbox();
+                }
+            });
         }
 
         function renderEvidenceButtons(animate = true) {
@@ -1545,6 +2450,13 @@ Show difficulty table
                 });
             }
 
+            // Calculate remaining possible ghosts first
+            const remainingGhosts = ghostsData.filter(g => {
+                if (manuallyRejectedGhosts[g.name]) return false;
+                const check = checkGhostPossibility(g, evidenceStates, mimicryChallengeActive);
+                return check.possible;
+            });
+
             let listWithPotentials = evidenceTypes.map(ev => {
                 let count = 0;
                 if (evidenceStates[ev.id] !== 1) {
@@ -1555,7 +2467,18 @@ Show difficulty table
                         if (checkGhostPossibility(g, simulatedStates, mimicryChallengeActive).possible) count++;
                     });
                 }
-                return { ...ev, prospectiveCount: count };
+                
+                // Check if evidence is sure or impossible
+                let isSure = false;
+                let isImpossible = false;
+                if (evidenceStates[ev.id] === 0 && remainingGhosts.length > 0) {
+                    const allHave = remainingGhosts.every(g => g.evidences.includes(ev.id));
+                    const noneHave = remainingGhosts.every(g => !g.evidences.includes(ev.id));
+                    isSure = allHave;
+                    isImpossible = noneHave;
+                }
+                
+                return { ...ev, prospectiveCount: count, isSure, isImpossible };
             });
 
             listWithPotentials.sort((a, b) => {
@@ -1582,6 +2505,10 @@ Show difficulty table
 
                 if (evidenceStates[ev.id] === 1) btn.className += ' confirmed';
                 if (evidenceStates[ev.id] === 2) btn.className += ' denied';
+                if (evidenceStates[ev.id] === 0) {
+                    if (ev.isSure) btn.className += ' sure';
+                    if (ev.isImpossible) btn.className += ' impossible';
+                }
 
                 let rightBadgeMarkup = '';
                 if (evidenceStates[ev.id] === 0) {
@@ -1721,6 +2648,9 @@ Show difficulty table
         function updateMatrixLogic() {
             renderEvidenceButtons(true);
 
+            // Broadcast changes to Supabase if in a session
+            broadcastLocalChange();
+
             const container = document.getElementById('ghost-list-container');
             
             const ghostPositions = {};
@@ -1775,6 +2705,16 @@ Show difficulty table
                 let valA = a.isManualExcluded ? 2 : (a.isImpossible ? 1 : 0);
                 let valB = b.isManualExcluded ? 2 : (b.isImpossible ? 1 : 0);
                 if (valA !== valB) return valA - valB;
+                
+                if (searchQuery) {
+                    const q = searchQuery.toLowerCase();
+                    const aStarts = a.name.toLowerCase().startsWith(q);
+                    const bStarts = b.name.toLowerCase().startsWith(q);
+                    if (aStarts !== bStarts) {
+                        return aStarts ? -1 : 1;
+                    }
+                }
+                
                 return b.matchCount - a.matchCount;
             });
 
@@ -1839,10 +2779,18 @@ Show difficulty table
             });
 
             equaliseRowHeights();
+            updateShareCodeInput();
         }
 
         function handleSearch() {
             searchQuery = document.getElementById('search-bar').value;
+            updateSearchClearVisibility();
+            updateMatrixLogic();
+        }
+        function resetSearch() {
+            searchQuery = '';
+            document.getElementById('search-bar').value = '';
+            updateSearchClearVisibility();
             updateMatrixLogic();
         }
 
@@ -1942,17 +2890,227 @@ Show difficulty table
             renderObjectives();
         }
 
+        function base62Encode(num) {
+            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+            let result = '';
+            do {
+                result = chars[num % 62] + result;
+                num = Math.floor(num / 62);
+            } while (num > 0);
+            return result || '0';
+        }
+        
+        function base62Decode(str) {
+            const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
+            let result = 0;
+            for (let i = 0; i < str.length; i++) {
+                const char = str[i];
+                const value = chars.indexOf(char);
+                result = result * 62 + value;
+            }
+            return result;
+        }
+        
+        function binaryToNumber(binaryStr) {
+            let num = 0;
+            for (let i = 0; i < binaryStr.length; i++) {
+                num = num * 2 + (binaryStr[i] === '1' ? 1 : 0);
+            }
+            return num;
+        }
+        
+        function numberToBinary(num, length) {
+            let binary = num.toString(2);
+            while (binary.length < length) {
+                binary = '0' + binary;
+            }
+            return binary;
+        }
+        
+        function generateShareCode() {
+            let binaryCode = mimicryChallengeActive ? '1' : '0';
+            ghostsData.forEach(ghost => {
+                const isDenied = manuallyRejectedGhosts[ghost.name] || !checkGhostPossibility(ghost, evidenceStates, mimicryChallengeActive).possible;
+                binaryCode += isDenied ? '1' : '0';
+            });
+            let encoded = base62Encode(binaryToNumber(binaryCode));
+            // Pad with leading zeros to make it always 5 characters
+            while (encoded.length < 5) {
+                encoded = '0' + encoded;
+            }
+            return encoded;
+        }
+        
+        function updateShareCodeInput() {
+            document.getElementById('sharecode-input').value = generateShareCode();
+        }
+        
+        function showFeedback(message) {
+            const popup = document.getElementById('feedback-popup');
+            popup.textContent = message;
+            popup.classList.add('show');
+            setTimeout(() => {
+                popup.classList.remove('show');
+            }, 1500);
+        }
+        
+        function copyRemainingGhosts() {
+            const remaining = ghostsData.filter(g => {
+                if (manuallyRejectedGhosts[g.name]) return false;
+                return checkGhostPossibility(g, evidenceStates, mimicryChallengeActive).possible;
+            });
+            const list = remaining.map(g => g.name).join('\n');
+            navigator.clipboard.writeText(list).catch(err => console.error(err));
+            showFeedback('Remaining ghosts copied!');
+        }
+        
+        function randomizeGhost() {
+            const remaining = ghostsData.filter(g => {
+                if (manuallyRejectedGhosts[g.name]) return false;
+                return checkGhostPossibility(g, evidenceStates, mimicryChallengeActive).possible;
+            });
+            if (remaining.length === 0) {
+                showFeedback('No remaining ghosts!');
+                return;
+            }
+            const randomIndex = Math.floor(Math.random() * remaining.length);
+            const selectedGhost = remaining[randomIndex];
+            searchQuery = selectedGhost.name;
+            document.getElementById('search-bar').value = selectedGhost.name;
+            updateSearchClearVisibility();
+            updateMatrixLogic();
+            showFeedback(`Selected: ${selectedGhost.name}`);
+        }
+
+        function copyShareCode() {
+            const code = generateShareCode();
+            document.getElementById('sharecode-input').value = code;
+            
+            // Generate link with code
+            const url = new URL(window.location.href);
+            url.searchParams.set('code', code);
+            navigator.clipboard.writeText(url.toString()).catch(err => console.error(err));
+            
+            showFeedback('Share link copied!');
+        }
+        
+        function applyShareCode() {
+            const code = document.getElementById('sharecode-input').value.trim();
+            if (!code) return;
+            
+            // Decode from base62
+            const num = base62Decode(code);
+            const binaryCode = numberToBinary(num, 1 + ghostsData.length); // 1 for mimic + ghosts count
+            
+            // Reset first
+            evidenceTypes.forEach(ev => evidenceStates[ev.id] = 0);
+            document.getElementById('search-bar').value = "";
+            searchQuery = "";
+            updateSearchClearVisibility();
+            manuallyRejectedGhosts = {};
+            
+            // Set mimic
+            mimicryChallengeActive = binaryCode[0] === '1';
+            document.getElementById('mimic-check').checked = mimicryChallengeActive;
+            
+            // Set ghost states
+            ghostsData.forEach((ghost, index) => {
+                const isDenied = binaryCode[index + 1] === '1';
+                if (isDenied) {
+                    manuallyRejectedGhosts[ghost.name] = true;
+                }
+            });
+            
+            // Auto-set evidences
+            autoSetEvidences();
+            
+            updateMatrixLogic();
+            showFeedback('Sharecode applied!');
+        }
+        
+        function autoSetEvidences() {
+            // Compute remaining ghosts
+            const remaining = ghostsData.filter(g => {
+                if (manuallyRejectedGhosts[g.name]) return false;
+                return checkGhostPossibility(g, evidenceStates, mimicryChallengeActive).possible;
+            });
+            
+            if (remaining.length === 0) return;
+            
+            // Check for evidences that all remaining have: set to confirmed
+            evidenceTypes.forEach(ev => {
+                if (evidenceStates[ev.id] === 0) {
+                    const allHave = remaining.every(g => g.evidences.includes(ev.id));
+                    if (allHave) {
+                        evidenceStates[ev.id] = 1;
+                    }
+                }
+            });
+            
+            // Check for evidences that none remaining have: set to denied
+            evidenceTypes.forEach(ev => {
+                if (evidenceStates[ev.id] === 0) {
+                    const noneHave = remaining.every(g => !g.evidences.includes(ev.id));
+                    if (noneHave) {
+                        evidenceStates[ev.id] = 2;
+                    }
+                }
+            });
+        }
+
         function resetMatrix() {
             evidenceTypes.forEach(ev => evidenceStates[ev.id] = 0);
             document.getElementById('search-bar').value = "";
             searchQuery = "";
+            updateSearchClearVisibility();
             document.getElementById('mimic-check').checked = false;
             mimicryChallengeActive = false;
             manuallyRejectedGhosts = {};
             updateMatrixLogic();
+            updateShareCodeInput();
         }
 
-        window.onload = setupUI;
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        window.onload = function() {
+            setupUI();
+            const backToTopBtn = document.getElementById('back-to-top-btn');
+            
+            function updateBackToTopVisibility() {
+                const isMobile = window.matchMedia('(max-aspect-ratio: 1/1), (max-width: 768px)').matches;
+                if (!isMobile) {
+                    backToTopBtn.style.display = 'none';
+                    return;
+                }
+                
+                // Check if we're on the ghost tab
+                const ghostView = document.getElementById('ghost-view');
+                if (!ghostView.classList.contains('active')) {
+                    backToTopBtn.style.display = 'none';
+                    return;
+                }
+                
+                const searchContainer = document.getElementById('search-container');
+                if (searchContainer) {
+                    const searchBottom = searchContainer.getBoundingClientRect().bottom;
+                    if (searchBottom < 0) {
+                        backToTopBtn.style.display = 'block';
+                    } else {
+                        backToTopBtn.style.display = 'none';
+                    }
+                }
+            }
+            
+            window.addEventListener('scroll', updateBackToTopVisibility);
+            // Also update when switching tabs
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    setTimeout(updateBackToTopVisibility, 50);
+                });
+            });
+        };
         window.addEventListener('resize', equaliseRowHeights);
     </script>
 </body>
