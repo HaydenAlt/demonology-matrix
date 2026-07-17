@@ -6,7 +6,7 @@
     <meta name="description" content="Demonology Matrix, a handy dashboard for the Roblox game, Demonology v1.10.0. Track ghosts, evidence, and sync with your team in real-time.">
     <title>Demonology Matrix v1.10.0</title>
     
-    <!-- Favicons -->
+    
     <link rel="icon" type="image/x-icon" href="favicon.ico">
     <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png">
     <link rel="manifest" href="site.webmanifest">
@@ -1065,9 +1065,10 @@
         }
 
         .q-btn.active-unk {
-            background: #27272a;
+            background: #3f3f46;
             color: #fff;
-            border-color: #52525b;
+            border-color: #71717a;
+            box-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
         }
 
         .v407-controls {
@@ -1128,7 +1129,7 @@
         }
 
         .v407-info-panel-desktop {
-            height: 220px; /* Slightly larger on desktop */
+            height: 220px;
         }
 
         .v407-ghost-item {
@@ -1882,7 +1883,14 @@
     </style>
 </head>
 <body>
-    <h1 class="visually-hidden">Demonology Matrix - Dashboard for Roblox Demonology v1.10.0</h1>
+    <h1 class="visually-hidden">Demonology Matrix Dashboard - Demonology v1.10.0</h1>
+    <div class="visually-hidden">
+        <p>Demonology Matrix Dashboard for the Roblox game, Demonology v1.10.0. A comprehensive tool for tracking ghost evidence and identifying entities. Developed for the Demonology community.</p>
+        <nav>
+            <a href="asset.txt">View Ghost Data Assets</a>
+            <a href="index.html">Demonology Matrix Home</a>
+        </nav>
+    </div>
     <div id="top-bar">
         <div class="header-left">
             <div class="app-title">Demonology Matrix</div>
@@ -3047,13 +3055,16 @@
 
         function setQuestionState(id, state) {
             const q = getQuestionById(id);
-            if (!q || q.state === state) return;
-            if (state !== 0 && checkWillRejectAll(id, state)) {
+            if (!q) return;
+            
+            const targetState = q.state === state ? 0 : state;
+            
+            if (targetState !== 0 && checkWillRejectAll(id, targetState)) {
                 showFeedback('That would leave 0 remaining ghosts.');
                 return;
             }
-            q.state = state;
-            syncFollowUpsForQuestion(q, state);
+            q.state = targetState;
+            syncFollowUpsForQuestion(q, targetState);
             renderQuestions();
             updateMatrixLogic();
         }
@@ -3308,10 +3319,13 @@
                     return;
                 }
             } else if (data) {
-                isProcessingRemoteUpdate = true;
-                document.getElementById('sharecode-input').value = data.sharecode;
-                applyShareCode();
-                isProcessingRemoteUpdate = false;
+                const currentCode = generateShareCode();
+                if (data.sharecode !== currentCode) {
+                    isProcessingRemoteUpdate = true;
+                    document.getElementById('sharecode-input').value = data.sharecode;
+                    applyShareCode(true);
+                    isProcessingRemoteUpdate = false;
+                }
             }
 
             syncChannel = supabaseClient
@@ -3323,10 +3337,13 @@
                     filter: `id=eq.${sessionId}` 
                 }, (payload) => {
                     if (!isProcessingRemoteUpdate) {
-                        isProcessingRemoteUpdate = true;
-                        document.getElementById('sharecode-input').value = payload.new.sharecode;
-                        applyShareCode();
-                        isProcessingRemoteUpdate = false;
+                        const currentCode = generateShareCode();
+                        if (payload.new.sharecode !== currentCode) {
+                            isProcessingRemoteUpdate = true;
+                            document.getElementById('sharecode-input').value = payload.new.sharecode;
+                            applyShareCode(true);
+                            isProcessingRemoteUpdate = false;
+                        }
                     }
                 })
                 .subscribe((status) => {
@@ -3377,7 +3394,7 @@
 
             if (code) {
                 document.getElementById('sharecode-input').value = code;
-                applyShareCode();
+                applyShareCode(true);
                 showFeedback('Sharecode applied from URL');
             }
 
@@ -3757,6 +3774,7 @@
         function updateMatrixLogic() {
             if (currentViewMode === 'v407') {
                 renderV407View();
+                broadcastLocalChange();
                 return;
             }
             renderEvidenceButtons(true);
@@ -4032,6 +4050,7 @@
         const BASE62_ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
         const SCRAMBLE_KEY = 0x3f2a1b0c4d5e6f789a0b1c2dn;
         const XOR_PATTERN = 0x5a5a5a5a5a5a5a5a5a5a5a5an;
+        const SHARECODE_OFFSET = 704423425546998022968330264616370176n;
 
         function base62EncodeBigInt(n) {
             if (n === 0n) return '0';
@@ -4053,92 +4072,90 @@
             return res;
         }
 
-        function buildShareCodeFiller(seed, length) {
-            let workingSeed = seed === 0n ? 17n : seed;
-            let filler = '';
-            for (let i = 0; i < length; i++) {
-                workingSeed = (workingSeed * 37n + 17n + BigInt(i)) % 62n;
-                filler += BASE62_ALPHABET[Number((workingSeed + BigInt(i * 11)) % 62n)];
-            }
-            return filler;
-        }
-
         function generateShareCode() {
             let payload = 0n;
             payload = (payload << 1n) | (mimicryChallengeActive ? 1n : 0n);
+            
             ghostsData.forEach(g => {
                 payload = (payload << 1n) | (manuallyRejectedGhosts[g.name] ? 1n : 0n);
             });
-            questionData.forEach(q => {
-                if (q.type === 'question') {
-                    payload = payload * 3n + BigInt(q.state);
-                }
+            
+            const questions = questionData.filter(q => q.type === 'question');
+            questions.forEach(q => {
+                payload = payload * 3n + BigInt(q.state || 0);
+            });
+            
+            evidenceTypes.forEach(ev => {
+                payload = payload * 3n + BigInt(evidenceStates[ev.id] || 0);
             });
 
             payload ^= SCRAMBLE_KEY;
             payload ^= XOR_PATTERN;
 
-            const rawBody = base62EncodeBigInt(payload);
-            if (rawBody.length > 20) {
-                throw new Error('Share code payload exceeded 20 characters.');
-            }
-
-            const checksum = Number(payload % 3n);
-            const headerIndex = 1 + (rawBody.length - 1) + checksum * 20;
-            const headerChar = BASE62_ALPHABET[headerIndex];
-            const filler = buildShareCodeFiller(payload, 20 - rawBody.length);
-            return headerChar + filler + rawBody;
+            const checksum = payload % 31n;
+            const finalValue = (payload * 31n + checksum) + SHARECODE_OFFSET;
+            
+            return base62EncodeBigInt(finalValue);
         }
 
-        function applyShareCode() {
+        function applyShareCode(silent = false) {
             const code = document.getElementById('sharecode-input').value.trim();
             if (!code || code.length !== 21 || !/^[0-9a-zA-Z]+$/.test(code)) {
-                showError('Invalid share code format.');
+                if (!silent) showError('Invalid share code format.');
                 return;
             }
             try {
-                const headerIndex = BASE62_ALPHABET.indexOf(code[0]);
-                if (headerIndex < 1 || headerIndex > 60) {
-                    throw new Error('Invalid share code header.');
-                }
+                let val = base62DecodeBigInt(code);
+                
+                val -= SHARECODE_OFFSET;
+                if (val < 0n) throw new Error('Invalid code range');
 
-                const metadata = headerIndex - 1;
-                const bodyLength = (metadata % 20) + 1;
-                const checksum = Math.floor(metadata / 20);
-                let val = base62DecodeBigInt(code.slice(21 - bodyLength));
-                if (Number(val % 3n) !== checksum) {
-                    throw new Error('Invalid share code checksum.');
+                const checksum = val % 31n;
+                val = val / 31n;
+                if (val % 31n !== checksum) {
+                    throw new Error('Invalid checksum');
                 }
 
                 val ^= XOR_PATTERN;
                 val ^= SCRAMBLE_KEY;
+
+                for (let i = evidenceTypes.length - 1; i >= 0; i--) {
+                    evidenceStates[evidenceTypes[i].id] = Number(val % 3n);
+                    val = val / 3n;
+                }
+
                 const questions = questionData.filter(q => q.type === 'question');
                 for (let i = questions.length - 1; i >= 0; i--) {
                     questions[i].state = Number(val % 3n);
                     val = val / 3n;
                 }
+
                 for (let i = ghostsData.length - 1; i >= 0; i--) {
                     manuallyRejectedGhosts[ghostsData[i].name] = (val & 1n) === 1n;
                     val = val >> 1n;
                 }
+
                 mimicryChallengeActive = (val & 1n) === 1n;
+                
+                // Update UI
                 const mimicCheck = document.getElementById('mimic-check');
                 if (mimicCheck) mimicCheck.checked = mimicryChallengeActive;
+                
                 questionData.forEach(q => {
                     if (q.type === 'question') {
                         syncFollowUpsForQuestion(q, q.state);
                     }
                 });
-                evidenceTypes.forEach(ev => evidenceStates[ev.id] = 0);
+                
                 autoSetEvidences();
                 if (getRemainingGhosts().length === 0) {
                     throw new Error('Share code leaves no remaining ghosts.');
                 }
                 renderQuestions();
                 updateMatrixLogic();
-                showFeedback('Sharecode applied!');
+                if (!silent) showFeedback('Sharecode applied!');
             } catch (e) {
-                showError('Invalid share code format.');
+                if (!silent) showError('Invalid share code format.');
             }
         }
 
@@ -4265,7 +4282,6 @@
                     return;
                 }
                 
-                // Show after scrolling 300px on mobile, simpler and more reliable
                 if (window.scrollY > 300) {
                     backToTopBtn.style.display = 'block';
                 } else {
